@@ -1,0 +1,348 @@
+<script src=lib4.js></script>
+<script src="https://cdn.jsdelivr.net/npm/p5@0.10.2/lib/p5.js"></script>
+<script src="p5.sound.min.js"></script>
+
+<body bgcolor=black text=white link=white alink=white vlink=white>
+   <center>
+      <canvas id='canvas1' width=400 height=400></canvas>
+      <button id="play">
+         <span>Play/Pause</span>
+      </button>
+      <br>
+      <input type=range min=0 max=100 value=20 class=slider id=slider1>
+
+   </center>
+</body>
+
+<!!-------- VERTEX SHADER: YOU PROBABLY DON'T WANT TO CHANGE THIS RIGHT NOW -------->
+
+   <script id='my_vertex_shader' type='x-shader/x-vertex'>
+   attribute vec3 aPos;
+   attribute vec3 aNor;
+   uniform   mat4 uMatF;
+   uniform   mat4 uMatI;
+   varying   vec3 vPos;
+   varying   vec3 vNor;
+   void main() {
+      vec4 pos = uMatF * vec4(aPos, 1.);
+      vec4 nor = vec4(aNor, 0.) * uMatI;
+      gl_Position = pos;
+      vPos = pos.xyz;
+      vNor = nor.xyz;
+   }
+</script>
+
+   <!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
+
+      <script id='my_fragment_shader' type='x-shader/x-fragment'>
+
+ const int nl = 2;            // NUMBER OF LIGHTS
+ uniform vec3  uLDir[nl];     // LIGHT DIRECTIONS
+ uniform vec3  uLCol[nl];     // LIGHT COLORS
+ uniform mat4  uM;            // MATERIAL PROPERTIES
+ uniform float uTime;         // TIME (CURRENTLY UNUSED)
+ varying vec3  vPos;
+ varying vec3  vNor;
+
+ void main() {
+    vec3 P = vPos;            // SURFACE POINT
+    vec3 N = normalize(vNor); // SURFACE NORMAL
+    vec3 E = vec3(0.,0.,1.);  // APPROX DIRECTION TO EYE
+
+    // UNPACK MATERIAL PROPERTIES MATRIX
+
+    mat4 material = uM;
+    vec3 ambient  = material[0].rgb;
+    vec3 diffuse  = material[1].rgb;
+    vec3 specular = material[2].rgb;
+    float p       = material[2].a;
+
+    // DO PHONG SHADING
+
+    vec3 color = ambient;
+    for (int i = 0 ; i < nl ; i++) {
+       vec3 R = 2. * dot(uLDir[i], N) * N - uLDir[i];
+       float d = max(0., dot(uLDir[i], N));
+       float s = pow(max(0., dot(E, R)), p);
+       color += uLCol[i] * (diffuse * d + specular * s);
+    }
+
+    gl_FragColor = vec4(sqrt(color), 1.0);
+ }</script>
+
+      <!!-------- A PROPERLY DESCRIPTIVE TITLE -------->
+
+         <script id='my_title' type='text/html'>
+60s Dream Scape
+</script>
+
+         <!!-------- A LONGER TEXT DESCRIPTION -------->
+
+            <script id='my_instructions' type='text/html'><font color=#b0b0b0>
+This is a bunch of toruses coming together to make a hypnotic effect of them all rotating slightly out of sync.
+It reminds me of the opening to the Twilight Zone. The song may take a little time to load, so pressing the play button may not work on the first try.
+</script>
+
+            <script>
+
+               // CREATE THE HTML DOCUMENT
+
+               let vs = my_vertex_shader.innerHTML,
+                  fs = my_fragment_shader.innerHTML;
+               fs = fs.substring(1, fs.length);
+
+               document.body.innerHTML = [''
+                  , '<center><font size=6 color=#b0b0b0>' + my_title.innerHTML + '</center>'
+                  , '<TABLE cellspacing=0 cellpadding=0><TR>'
+                  , '<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>'
+                  , '</TR><TR>'
+                  , '<table cellspacing=10>'
+                  , '<tr>'
+                  , '<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>'
+                  , '<td valign=top>'
+                  , '<textArea id=textArea spellcheck=false '
+                  , 'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"'
+                  , '></textArea>'
+                  , '</td><td valign=top>' + document.body.innerHTML + '</td>'
+                  , '<td valign=top><font size=5>' + my_instructions.innerHTML + '</td>'
+                  , '</tr></table>'
+                  , '</TR></TABLE>'
+               ].join('');
+
+               // SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
+
+               let text = fs.split('\n'), cols = 0;
+               for (let i = 0; i < text.length; i++)
+                  cols = Math.max(cols, text[i].length);
+
+               textArea.rows = text.length;
+               textArea.cols = cols;
+               textArea.value = fs;
+               textArea.style.backgroundColor = '#202020';
+               textArea.style.color = 'white';
+
+               // REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
+
+               textArea.onkeyup = function () { canvas1.setShaders(vs, this.value); }
+
+               // USEFUL ANIMATION VARIABLES.
+
+               let startTime = Date.now(), prevTime = startTime, rate = 1, theta = 0;
+
+               // THIS METHOD GETS CALLED WHENEVER USER ADJUSTS THE SLIDER.
+
+               slider1.oninput = function () {
+                  rate = this.value / 50;
+               }
+
+               // DEFINE ANIMATION CALLBACK, WHICH WILL GET CALLED AT EVERY FRAME.
+               let x;
+               let analyzer = 0;
+               let song, spectrum, fft;
+               let vol;
+               let play = false;
+               let speed;
+               function preload() {
+                  soundFormats("mp3", "ogg");
+                  song = loadSound("./fightOffaLife.mp3");
+               }
+
+               function setup() {
+                  analyzer = new p5.Amplitude();
+                  fft = new p5.FFT();
+                  analyzer.setInput(song);
+                  song.setVolume(0.5);
+               }
+
+               function draw() {
+                  vol = analyzer.getLevel();
+                  spectrum = fft.analyze();
+                  speed = slider1.value / 20;
+                  speed = constrain(speed, 0.05, 5);
+                  song.rate(speed);
+               }
+
+               function togglePlay() {
+                  if (song.isPlaying()) {
+                     song.pause();
+                     play = false;
+                  } else {
+                     song.loop();
+                     play = true;
+                  }
+               }
+               const playButton = document.getElementById("play");
+
+               playButton.addEventListener("click", togglePlay);
+               let add;
+
+               let volTime = 0;
+               function animate() {
+
+                  // VARY THE ROTATION RATE DEPENDING ON THE SLIDER VALUE.
+
+                  let time = (Date.now() - startTime) / 1000;
+                  if (vol) {
+                     theta += 2 * rate * (time - prevTime) + vol / 5;
+                  } else {
+                     theta += 2 * rate * (time - prevTime);
+                  }
+
+                  prevTime = time;
+
+                  // SET TIME IN THE GPU.
+
+                  setUniform('1f', 'uTime', time);
+
+                  // SET LIGHTS IN THE GPU.
+
+                  setUniform('3fv', 'uLDir', [.57, .57, .57, -.57, -.57, -.57]);
+                  setUniform('3fv', 'uLCol', [1, 1, 1, .25, .2, .15]);
+
+                  // DRAW AN ANIMATING GOLD METAL ELLIPSOID.
+
+                  // setUniform('Matrix4fv', 'uM', false, [.1, .03, 0, 0, .12, .05, 0, 0, 1, .5, 0, 10, 1, 1, 1, 0]);
+                  // matrix.identity();
+                  // //matrix.translate(.5 * Math.sin(theta), -.4, 0);
+                  // matrix.scale(.1, .1, .2);
+                  // matrix.rotateX(time);
+                  // drawShape(torus);
+
+                  // DRAW AN ANIMATING RED PLASTIC ELLIPSOID.
+                  // for (let i = 0; i < 32; i++) {
+                  //    setUniform('Matrix4fv', 'uM', false, [.1, 0.01 * i * Math.sin(theta), 0, 0, .5 * (1 / i) * Math.cos(theta / 10), 0, 0, 0, 1, 1, 1, 40, 1, 1, 1, 0]);
+                  //    matrix.identity();
+                  //    matrix.scale(1.6 / i, 1 / i, 1 / i);
+                  //    matrix.translate(.1 * Math.sin(time * 0.1) * Math.cos(2 * theta + i), .1 + .2 * Math.sin(2 * theta + i), i * 0.1);
+                  //    drawShape(torus);
+                  // }
+
+                  setUniform('Matrix4fv', 'uM', false, [0.04, 0.025, 0.025, 0.1, 0.1, 0.1, 0, 0, 1, 1, 1, 20, 1, 1, 1, 0]);
+                  matrix.identity();
+                  // matrix.rotateX(0.3 * Math.sin(theta));
+                  // matrix.rotateY(0.3 * Math.sin(theta * 2));
+                  matrix.scale(0.1, 0.1, 0.1);
+
+                  matrix.translate(0, 0, 0);
+                  drawShape(cylinder);
+
+
+
+
+
+               }
+
+               // SEND CURRENT MATRIX VALUE TO GPU, THEN DOWNLOAD AND DRAW THE SHAPE AS A TRIANGLE STRIP.
+
+               let drawShape = shape => {
+                  let m = matrix.getValue();
+                  setUniform('Matrix4fv', 'uMatF', false, m);
+                  setUniform('Matrix4fv', 'uMatI', false, invert(m));
+                  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shape), gl.STATIC_DRAW);
+                  gl.drawArrays(gl.TRIANGLE_STRIP, 0, shape.length / stride);
+               }
+
+               // DEFINE A MATRIX CLASS.
+
+               function Matrix() {
+                  this.identity = function () {
+                     value = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+                     return this;
+                  }
+                  this.translate = function (x, y, z) {
+                     let m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]; // (1) CREATE TRANSLATION MATRIX.
+                     value = multiply(value, m);                   // (2) MULTIPLY TO CHANGE OBJECT value.
+                     return this;
+                  }
+                  this.scale = function (x, y, z) {
+                     let m = [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1]; // (1) CREATE SCALE MATRIX.
+                     value = multiply(value, m);                   // (2) MULTIPLY TO CHANGE OBJECT value.
+                     return this;
+                  }
+                  this.translate = function (tx, ty, tz) {
+                     let m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, tx, ty, tz, 1]; // (1) CREATE TRANSLATION MATRIX.
+                     value = multiply(m, value);                   // (2) MULTIPLY TO CHANGE OBJECT value.
+                     return this;
+                  }
+                  this.rotateX = function (theta) {
+                     // YOU NEED TO IMPLEMENT ROTATION ABOUT X HERE
+                     let m = [1, 0, 0, 0, 0, Math.cos(theta), Math.sin(theta), 0, 0, -Math.sin(theta), Math.cos(theta), 0, 0, 0, 0, 1];
+                     value = multiply(m, value);
+                     return this;
+                  }
+
+                  this.rotateY = function (theta) {
+                     let m = [Math.cos(theta), 0, -Math.sin(theta), 0, 0, 1, 0, 0, Math.sin(theta), 0, Math.cos(theta), 0, 0, 0, 0, 1];
+                     value = multiply(m, value);
+                     return this;
+                  }
+
+                  this.rotateZ = function (theta) {
+                     let m = [Math.cos(theta), -(Math.sin(theta)), 0, 0, Math.sin(theta), Math.cos(theta), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+                     value = multiply(m, value);
+                     return this;
+                  }
+
+                  this.scale = function (sx, sy, sz) {
+                     let m = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, sz, 0, 0, 0, 0, 1];
+                     value = multiply(m, value);
+                     return this;
+                  }
+                  //navigator web user audio
+                  //window .audiocontext web kit audio context
+                  //first webkit audio context
+                  //create script processer 
+                  //allowed to do stereo
+                  //set amplitude
+
+                  // GET THE CURRENT STATE OF THE Matrix OBJECT.
+
+                  this.getValue = function () {
+                     return value;
+                  }
+
+                  /////////////////////////////////////////////////////////////////////////////////
+                  //
+                  // NOTE: YOU ALSO NEED TO IMPLEMENT: this.rotateY(), this.rotateZ(), this.scale()
+                  //
+                  /////////////////////////////////////////////////////////////////////////////////
+
+                  // INTERNAL VARIABLES AND FUNCTIONS FOR THE Matrix CLASS:
+
+                  let value = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; // INTERNAL VALUE IS 16 NUMBERS.
+                  multiply = function (a, b) {
+                     let c = [];
+                     for (let i = 0; i < 4; i++) {
+                        //i is column and j is row
+                        for (let j = 0; j < 4; j++) {
+                           let sum = 0.0;
+                           for (let mult = 0; mult < 4; mult++) {
+                              sum += a[mult + j * 4] * b[i + mult * 4];
+                           }
+                           c[i + 4 * j] = sum;
+                        }
+                     }
+
+
+
+                     // YOU NEED TO IMPLEMENT MATRIX MULTIPLY HERE.
+
+                     // REMEMBER TO LOOP THROUGH ROWS j OF a AND COLUMNS i OF b.
+                     // FOR EACH ROW j OF a AND COLUMN i OF b, DO A DOT PRODUCT
+                     // BETWEEN THAT ROW OF a AND COLUMN OF b,
+                     // TO COMPUTE A FLOATING POINT NUMBER.
+
+                     // THAT RESULT WILL GO INTO COLUMN i, ROW j OF c, WHICH IS: c[i + 4*j]
+                     return c; // RETURN THE RESULT OF a x b. c SHOULD BE AN ARRAY OF 16 NUMBERS.
+                  }
+               }
+
+               // CREATE AN INSTANCE OF A MATRIX OBJECT.
+
+               let matrix = new Matrix();
+
+               // START EVERYTHING.
+
+               gl_start(canvas1, vs, fs);
+
+            </script>

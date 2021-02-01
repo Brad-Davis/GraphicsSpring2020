@@ -1,0 +1,334 @@
+<script src="lib4.js"></script>
+
+<body bgcolor="black" text="white" link="white" alink="white" vlink="white">
+  <center>
+    <canvas id="canvas1" width="400" height="400"></canvas>
+
+    <br />
+    <input style="display: none;" type="range" min="1" max="100" value="50" class="slider" id="rateSlider" />
+  </center>
+</body>
+
+<!!-------- VERTEX SHADER: YOU PROBABLY DON'T WANT TO CHANGE THIS RIGHT NOW -------->
+
+  <script id="my_vertex_shader" type="x-shader/x-vertex">
+  attribute vec3 aPos;
+  attribute vec3 aNor;
+  attribute vec2 aUV;
+  uniform   mat4 uPMat;
+  uniform   mat4 uMatF;
+  uniform   mat4 uMatI;
+  varying   vec3 vaPos;
+  varying   vec3 vPos;
+  varying   vec3 vNor;
+  varying   vec2 vUV;
+  void main() {
+     vec4 pos = uPMat * uMatF * vec4(aPos, 1.);
+     vec4 nor = vec4(aNor, 0.) * uMatI;
+     gl_Position = pos * vec4(1.,1.,1./10.,1.);
+     vaPos = aPos;
+     vPos = pos.xyz;
+     vNor = nor.xyz;
+     vUV  = aUV;
+  }
+</script>
+
+  <!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
+
+    <script id="my_fragment_shader" type="x-shader/x-fragment">
+
+  const int nl = 2;            // NUMBER OF LIGHTS
+  uniform vec3  uLDir[nl];     // LIGHT DIRECTIONS
+  uniform vec3  uLCol[nl];     // LIGHT COLORS
+  uniform mat4  uM;            // MATERIAL PROPERTIES
+  uniform float uTime;         // TIME (CURRENTLY UNUSED)
+  varying vec3  vPos;
+  varying vec3  vaPos;
+  varying vec3  vNor;
+  varying vec2  vUV;
+
+  void main() {
+     vec3 P = vPos;            // SURFACE POINT
+     vec3 N = normalize(vNor); // SURFACE NORMAL
+     vec3 E = vec3(0.,0.,1.);  // APPROX DIRECTION TO EYE
+
+     // UNPACK MATERIAL PROPERTIES MATRIX
+
+     mat4 material = uM;
+     vec3 ambient  = material[0].rgb;
+     vec3 diffuse  = material[1].rgb;
+     vec3 specular = material[2].rgb;
+     float p       = material[2].a;
+     float ta      = material[3].r;
+     float tf      = material[3].g;
+
+     // DO PHONG SHADING
+
+     vec3 color = ambient;
+     for (int i = 0 ; i < nl ; i++) {
+        vec3 R = 2. * dot(uLDir[i], N) * N - uLDir[i];
+        float d = max(0., dot(uLDir[i], N));
+        //float p2 = p * (1. + noise(vec3(10. * vUV, 0.)));
+        //float p2 = p * (1. + noise(10. * vaPos));
+        float s = pow(max(0., dot(E, R)), p);
+        color += uLCol[i] * (diffuse * d + specular * s);
+     }
+     if (ta != 0.)
+        color *= 1. + ta * noise(vec3(tf * vUV, 0.));
+     gl_FragColor = vec4(sqrt(color), 1.0);
+  }
+</script>
+
+    <!!-------- A PROPERLY DESCRIPTIVE TITLE -------->
+
+      <script id="my_title" type="text/html">
+  Keeping An Eye On Where You're Coming From
+</script>
+
+      <!!-------- A LONGER TEXT DESCRIPTION -------->
+
+        <script id="my_instructions" type="text/html">
+  <font color=#b0b0b0>
+  Based on a shot from Twin Peaks, This image is various shapes constructing what it would be like to look out the
+  back window of a car going down a highway. I plan to use the slider to control
+  a car going down the highway. Could be a good base for a driving game.
+<p>
+  The position of the trees is semi randomly generated which can lead to some glitchy
+  looking trees but I did my best to avoid that problem.
+  
+</script>
+
+        <script>
+          // CREATE THE HTML DOCUMENT
+
+          let vs = my_vertex_shader.innerHTML,
+            fs = my_fragment_shader.innerHTML;
+          fs = fs.substring(1, fs.length);
+
+          document.body.innerHTML = [
+            "",
+            "<center><font size=6 color=#b0b0b0>" + my_title.innerHTML + "</center>",
+            "<TABLE cellspacing=0 cellpadding=0><TR>",
+            "<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>",
+            "</TR><TR>",
+            "<table cellspacing=10>",
+            "<tr>",
+            "<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>",
+            "<td valign=top>",
+            "<textArea id=textArea spellcheck=false ",
+            'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"',
+            "></textArea>",
+            "</td><td valign=top>" + document.body.innerHTML + "</td>",
+            "<td valign=top><font size=5>" + my_instructions.innerHTML + "</td>",
+            "</tr></table>",
+            "</TR></TABLE>"
+          ].join("");
+
+          // SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
+
+          let text = fs.split("\n"),
+            cols = 0;
+          for (let i = 0; i < text.length; i++) cols = Math.max(cols, text[i].length);
+
+          textArea.rows = text.length;
+          textArea.cols = cols;
+          textArea.value = fs;
+          textArea.style.backgroundColor = "#202020";
+          textArea.style.color = "white";
+
+          // REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
+
+          textArea.onkeyup = function () {
+            canvas1.setShaders(vs, this.value);
+          };
+
+          // USEFUL ANIMATION VARIABLES.
+
+          let startTime = Date.now(),
+            prevTime = startTime,
+            rate = 1,
+            theta = 0;
+
+          // THIS METHOD GETS CALLED WHENEVER USER ADJUSTS THE SLIDER.
+
+          rateSlider.oninput = function () {
+            rate = this.value / 50;
+          };
+
+          let gold = phong([0.1, 0.03, 0], [0.12, 0.05, 0], [1, 0.5, 0], 10);
+          let red_plastic = phong([0.1, 0, 0], [0.5, 0, 0], [1, 1, 1], 20, 1, 20);
+          let green_plastic = phong([0, 0.1, 0], [0, 0.5, 0], [1, 1, 1], 20);
+          let blue_plastic = phong([0, 0.05, 0.1], [0, 0.25, 0.5], [1, 1, 1], 20);
+          let white_plastic = phong([0.1, 0.1, 0.1], [0.5, 0.5, 0.5], [1, 1, 1], 20, 1, 20);
+          let steel = phong([0.02, 0.02, 0.02], [0.02, 0.02, 0.02], [1, 1, 1], 10);
+          let moonGlow = phong([.5, .5, .5], [.1, .1, .1], [.1, .1, .1], 20, 1, 20);
+          let grass = phong([0, 0, 0.], [0.32, 0.41, 0.17], [0.32, 0.41, 0.17], 10, .5, 10)
+          let brown = phong([0, 0, 0], [.14, .098, .088], [1.4, .98, .88], 20, 1, 20);
+          let asphalt = phong([0, 0, 0], [.4, .43, .62], [.4, .43, .42], 20);
+          let yellow = phong([.18, .14, 0.], [.9, .7, 0.], [.4, .43, .42], 20);
+          let shiny_black = phong([0., 0., 0.], [0.05, 0.05, 0.05], [0, 0, 0], 20, 1, 20);
+          let tire_black = phong([0., 0., 0.], [0.01, 0.01, 0.01], [0, 0, 0], 20, 1, 20);
+          let headlight = phong([.66, .48, 0.], [.9, .7, 0.3], [.0, .0, .0], 80);
+          let white_gold = phong([.01, .01, .008], [0, 0, 0], [2, 2, 1.6], 40);
+          // DEFINE ANIMATION CALLBACK, WHICH WILL GET CALLED AT EVERY FRAME.
+
+
+
+
+          function animate() {
+            // VARY THE ROTATION RATE DEPENDING ON THE SLIDER VALUE.
+
+            let time = (Date.now() - startTime) / 1000;
+            theta += 2 * rate * (time - prevTime);
+            prevTime = time;
+
+            // SET TIME IN THE GPU.
+
+            setUniform("1f", "uTime", time);
+
+            // SET LIGHTS IN THE GPU.
+
+            setUniform("3fv", "uLDir", [0.57, 0.57, 0.57, -0.57, -0.57, -0.57]);
+            setUniform("3fv", "uLCol", [1, 1, 1, 0.25, 0.2, 0.15]);
+
+            // SET PERPECTIVE MATRIX.
+
+            setUniform("Matrix4fv", "uPMat", false, perspectiveMatrix);
+            let N = tree.length;
+            let Y;
+            let StumpHeight = 0.2;
+
+            for (let n = 0; n < N; n++) {
+              treeZ[n] = treeZ[n] - 0.1;
+
+              if (treeZ[n] < -10) {
+                treeZ[n] = 1 + Math.random() * 2;
+              }
+              Y = - Math.sin(treeZ[n] / 2) * 0.07;
+              tree[n].child(0).identity().translate(treeX[n], Y, treeZ[n]).scale(0.03, 0.1, 0.1).rotateX(Math.PI / 2);
+              tree[n].child(1).identity().translate(treeX[n], Y + StumpHeight, treeZ[n]).scale(0.1, 0.1, 0.1).rotateX(-Math.PI / 2);
+              tree[n].child(2).identity().translate(treeX[n], Y + StumpHeight + 0.1, treeZ[n]).scale(0.1, 0.1, 0.1).rotateX(-Math.PI / 2);
+            }
+
+
+
+            for (let n = 0; n < roadMarkNum; n++) {
+              roadY[n] -= 0.1;
+              if (roadY[n] < -14) {
+                roadY[n] += 24
+              }
+              roadMark[n].child(0).identity()
+                .rotateX(Math.PI / 2 + .07)
+                .scale(0.025, .3, 0.076)
+                .translate(0, roadY[n], 1.2);
+            }
+
+
+            //Car to be added!!!!
+            let carZ = 0.4;
+            let carX = 0.3 * Math.sin(time);//-0.3 to 0.3
+
+            car.identity().translate(carX, -0.1, carZ).rotateZ(-0.1 * Math.sin(time)).rotateY(-Math.PI / 2 - 0.2 * Math.sin(time - 2));
+            car.child(5).rotateX(time);
+            car.child(6).rotateX(time);
+            car.child(7).rotateX(time);
+            car.child(8).rotateX(time);
+
+            root.draw();
+          }
+
+          let perspectiveMatrix = createPerspectiveMatrix(3);
+          //let perspectiveMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+
+          let matrix = new Matrix();
+          let root = new Object();
+
+
+          let squareN = createSquareMesh(20);
+
+          let moon = root.add();
+          moon.add(sphere, moonGlow);
+
+          moon.identity()
+            .translate(-0.7, 1.2, -2)
+            .scale(0.1, 0.1, 0.1);
+
+          let road = root.add();
+          road.add(square, asphalt);
+
+          road
+            .identity()
+            .rotateX(Math.PI / 2 + .07)
+            .scale(0.5, 4.2, 0.077)
+            .translate(0, 0, 1.2);
+
+          let roadMark = [];
+          let roadY = [];
+          let roadMarkNum = 7;
+          for (let n = 0; n < roadMarkNum; n++) {
+            roadMark[n] = root.add(null, yellow);
+            roadY[n] = 9 - n * 3.5;
+            roadMark[n].add(square);
+          }
+
+
+          let tree = []
+          let treeZ = [];
+          let treeX = [];
+          let TreeNum = 6;
+          for (let n = 0; n < TreeNum; n++) {
+            treeZ[n] = 1 + Math.random() * 10 + n * 0.4;
+            if (n < TreeNum / 2) {
+              treeX[n] = -0.7 - n / 6;
+            } else {
+              treeX[n] = 0.7 + n / 12;
+            }
+
+            tree[n] = root.add(null, brown);
+            tree[n].add(cylinder);
+            tree[n].add(cone, grass);
+            tree[n].add(cone, grass);
+          }
+
+
+          let ground = root.add();
+          ground.add(square, grass);
+
+          ground
+            .identity()
+            .rotateX(Math.PI / 2 + .07)
+            .scale(4.2, 4.2, 0.08)
+            .translate(0, 0, 1.2);
+
+          let car = root.add();
+          car.add(cube, shiny_black);
+          car.add(cube);//body
+          car.add(cube);//body2
+          car.add(sphere, headlight); //headlight.
+          car.add(sphere); //headlight
+          car.add(sphere, tire_black);//tire
+          car.add(sphere);
+          car.add(sphere);
+          car.add(sphere);
+          // car.add(torus);
+          // car.add(torus);
+          // car.add(torus);
+          car.identity()
+          car.child(0).identity().translate(0, 0.1, 0).scale(0.1, 0.05, 0.3);
+          car.child(1).identity().translate(0, 0.16, 0).scale(0.1, 0.05, 0.1).rotateX(-0.2);
+          car.child(2).identity().translate(0, 0.14, -0.04).scale(0.1, 0.05, 0.1).rotateX(0.2);
+          car.child(3).identity().translate(-0.05, 0.1, 0.3).scale(0.03, 0.015, 0.01)
+          car.child(4).identity().translate(0.05, 0.1, 0.3).scale(0.03, 0.015, 0.01)
+          car.child(5).identity().translate(-0.07, 0.06, 0.15).scale(0.03, 0.05, 0.05);
+          car.child(6).identity().translate(-0.07, 0.06, -0.15).scale(0.03, 0.05, 0.05);
+          car.child(7).identity().translate(0.07, 0.06, -0.15).scale(0.03, 0.05, 0.05);
+          car.child(8).identity().translate(0.07, 0.06, 0.15).scale(0.03, 0.05, 0.05);
+
+
+          //test.add(joint, );
+          //test.child(0);
+
+          // START EVERYTHING.
+
+          gl_start(canvas1, vs, fs);
+        </script>

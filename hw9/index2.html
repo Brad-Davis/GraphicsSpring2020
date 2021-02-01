@@ -1,0 +1,442 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.10.2/p5.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.10.2/addons/p5.sound.min.js"></script>
+<script src=lib8.js></script>
+
+
+
+<body bgcolor=black text=white link=white alink=white vlink=white>
+   <center>
+      <canvas id='canvas1' width=400 height=400></canvas>
+      <br>
+
+      <input type=range min=1 max=100 value=50 class=slider id=rotateSlider>
+      <div>
+         <p>
+            scale X <input type=range step=0.01 min=0 max=2 value=1 class=slider id=scaleX>
+            <br>
+            scale Y <input type=range step=0.01 min=0 max=2 value=1 class=slider id=scaleY>
+            <br>
+            scale Z <input type=range step=0.01 min=0 max=2 value=1 class=slider id=scaleZ>
+            <br>
+            <br>
+            <button id='scaleBy' onclick="scaleStore()">Click to store values, Then Click Object To Scale!</button>
+            <div id="scale"></div>
+            <br>
+            Frequency <input type=range min=0 max=1024 value=512 class=slider id=Freq>
+            <br>
+            <br>
+            <button id='freqBy' onclick="freqStore()">Click to store Frequency of slider, Then Click Object To
+               Dance! </button>
+            <br>
+            <br>
+            <div id="audio_box"></div>
+
+
+      </div>
+
+      <div>
+
+      </div>
+
+
+   </center>
+
+</body>
+
+<!!-------- VERTEX SHADER: YOU PROBABLY DON'T WANT TO CHANGE THIS RIGHT NOW -------->
+
+   <script id='my_vertex_shader' type='x-shader/x-vertex'>
+   attribute vec3 aPos;
+   attribute vec3 aNor;
+   attribute vec2 aUV;
+   uniform   mat4 uPMat;
+   uniform   mat4 uMatF;
+   uniform   mat4 uMatI;
+   varying   vec3 vaPos;
+   varying   vec3 vPos;
+   varying   vec3 vNor;
+   varying   vec2 vUV;
+   void main() {
+      vec4 pos = uPMat * uMatF * vec4(aPos, 1.);
+      vec4 nor = vec4(aNor, 0.) * uMatI;
+      gl_Position = pos * vec4(1.,1.,1./10.,1.);
+      vaPos = aPos;
+      vPos = pos.xyz;
+      vNor = nor.xyz;
+      vUV  = aUV;
+   }
+</script>
+
+   <!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
+
+      <script id='my_fragment_shader' type='x-shader/x-fragment'>
+
+ const int nl = 3;            // NUMBER OF LIGHTS
+ uniform vec3  uLDir[nl];     // LIGHT DIRECTIONS
+ uniform vec3  uLCol[nl];     // LIGHT COLORS
+ uniform mat4  uM;            // MATERIAL PROPERTIES
+ uniform float uTime;         // TIME (CURRENTLY UNUSED)
+ varying vec3  vPos;
+ varying vec3  vaPos;
+ varying vec3  vNor;
+ varying vec2  vUV;
+
+ void main() {
+    vec3 P = vPos;            // SURFACE POINT
+    vec3 N = normalize(vNor); // SURFACE NORMAL
+    vec3 E = vec3(0.,0.,1.);  // APPROX DIRECTION TO EYE
+
+    // UNPACK MATERIAL PROPERTIES MATRIX
+
+    mat4 material = uM;
+    vec3 ambient  = material[0].rgb;
+    vec3 diffuse  = material[1].rgb;
+    vec3 specular = material[2].rgb;
+    float p       = material[2].a;
+    float ta      = material[3].r;
+    float tf      = material[3].g;
+
+    // DO PHONG SHADING
+
+    vec3 color = ambient;
+    for (int i = 0 ; i < nl ; i++) {
+       vec3 R = 2. * dot(uLDir[i], N) * N - uLDir[i];
+       float d = max(0., dot(uLDir[i], N));
+       float s = pow(max(0., dot(E, R)), p);
+       color += uLCol[i] * (diffuse * d + specular * s);
+    }
+    color += specular * .02 * (.1 + noise(2. * N)) * N.z;
+    if (ta != 0.)
+       color *= 1. + ta * noise(vec3(tf * vUV, 0.));
+    gl_FragColor = vec4(sqrt(color), 1.0);
+ }</script>
+
+      <!!-------- A PROPERLY DESCRIPTIVE TITLE -------->
+
+         <script id='my_title' type='text/html'>
+Dancing Shapes!
+</script>
+
+         <!!-------- A LONGER TEXT DESCRIPTION -------->
+
+            <script id='my_instructions' type='text/html'><font color=#b0b0b0>
+This modeling system uses frequency analysis of an mp3 file to allow the spheres to dance
+<p>
+Most of the controls here require you to first place a sphere then click what you want to apply then clicking again on the sphere.
+
+</script>
+
+            <script>
+
+               // CREATE THE HTML DOCUMENT
+
+               let vs = my_vertex_shader.innerHTML,
+                  fs = my_fragment_shader.innerHTML;
+               fs = fs.substring(1, fs.length);
+
+               document.body.innerHTML = [''
+                  , '<center><font size=6 color=#b0b0b0>' + my_title.innerHTML + '</center>'
+                  , '<TABLE cellspacing=0 cellpadding=0><TR>'
+                  , '<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>'
+                  , '</TR><TR>'
+                  , '<table cellspacing=10>'
+                  , '<tr>'
+                  , '<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>'
+                  , '<td valign=top>'
+                  , '<textArea id=textArea spellcheck=false '
+                  , 'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"'
+                  , '></textArea>'
+                  , '</td><td valign=top>' + document.body.innerHTML + '</td>'
+                  , '<td valign=top><font size=5>' + my_instructions.innerHTML + '</td>'
+                  , '</tr></table>'
+                  , '</TR></TABLE>'
+               ].join('');
+               var audio = new Audio();
+               audio.src = 'comingBack.mp3';
+               audio.controls = true;
+               audio.loop = true;
+               audio.autoplay = true;
+
+
+               window.AudioContext = window.AudioContext || window.webkitAudioContext;
+               // Establish all variables that your Analyser will use
+               var canvas, ctx, source, context, analyser, fbc_array, bars, bar_x, bar_width, bar_height;
+               // Initialize the MP3 player after the page loads all of its HTML into the window
+               window.addEventListener("load", initMp3Player, false);
+               // SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
+
+
+               function initMp3Player() {
+                  document.getElementById('audio_box').appendChild(audio);
+                  context = new AudioContext(); // AudioContext object instance
+                  analyser = context.createAnalyser(); // AnalyserNode method
+                  // Re-route audio playback into the processing graph of the AudioContext
+                  source = context.createMediaElementSource(audio);
+                  source.connect(analyser);
+                  analyser.connect(context.destination);
+                  fbc_array = new Uint8Array(analyser.frequencyBinCount);
+                  //analyser.getByteFrequencyData(fbc_array);
+               }
+
+               let text = fs.split('\n'), cols = 0;
+               for (let i = 0; i < text.length; i++)
+                  cols = Math.max(cols, text[i].length);
+
+               textArea.rows = text.length;
+               textArea.cols = cols;
+               textArea.value = fs;
+               textArea.style.backgroundColor = '#202020';
+               textArea.style.color = 'white';
+
+               // REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
+
+               textArea.onkeyup = function () { canvas1.setShaders(vs, this.value); }
+
+               // USEFUL ANIMATION VARIABLES.
+
+               let startTime = Date.now(), prevTime = startTime, rate = 1, theta = 0;
+
+               // THIS METHOD GETS CALLED WHENEVER USER ADJUSTS THE SLIDER.
+
+               rotateSlider.oninput = function () {
+                  theta = Math.PI * (.5 - this.value / 50);
+               }
+
+
+
+
+
+               let blue_plastic = phong([0, .05, .1], [0, .25, .5], [1, 1, 1], 20);
+               let brass = phong([.02, .012, 0], [.02, .012, 0], [1, .6, 0], 10);
+               let gold = phong([.1, .03, 0], [.12, .05, 0], [1, .5, 0], 10);
+               let green_plastic = phong([0, .1, 0], [0, .5, 0], [1, 1, 1], 20);
+               let red_mottled_plastic = phong([.1, 0, 0], [.5, 0, 0], [1, 1, 1], 20, 1, 20);
+               let red_plastic = phong([.1, 0, 0], [.5, 0, 0], [1, 1, 1], 20);
+               let steel = phong([.02, .02, .02], [.02, .02, .02], [1, 1, 1], 10);
+               let white_gold = phong([.01, .01, .008], [0, 0, 0], [2, 2, 1.6], 40);
+               let white_mottled_plastic = phong([.1, .1, .1], [.5, .5, .5], [1, 1, 1], 20, 1, 20);
+               let white_plastic = phong([.1, .1, .1], [.5, .5, .5], [1, 1, 1], 20);
+
+               // DEFINE ANIMATION CALLBACK, WHICH WILL GET CALLED AT EVERY FRAME.
+
+               //p5.js song stuff!
+
+
+               let add;
+
+
+
+               let time = 0;
+
+               let viewMatrix = new Matrix();
+               let inverseViewMatrix = new Matrix();
+
+               function animate() {
+
+                  // VARY THE ROTATION RATE DEPENDING ON THE SLIDER VALUE.
+
+                  time = (Date.now() - startTime) / 1000;
+
+                  // SET TIME IN THE GPU.
+
+                  setUniform('1f', 'uTime', time);
+
+                  // SET LIGHTS IN THE GPU.
+
+                  setUniform('3fv', 'uLDir', [.57, .57, .57, -.57, -.57, -.57, -.8, -.6, 0]);
+                  setUniform('3fv', 'uLCol', [1, 1, 1, .25, .2, .15, .2, .18, .16]);
+
+                  // DRAW EVERYTHING.
+
+                  analyser.getByteFrequencyData(fbc_array);
+
+                  viewMatrix.identity().rotateY(theta);
+
+                  inverseViewMatrix.setValue(viewMatrix.getValue());
+                  inverseViewMatrix.invert();
+
+                  scene.identity().multiply(viewMatrix);
+
+                  if (!isPressed)
+                     selectedObject = null;
+
+                  for (let i = 0; i < colorSwatch.length; i++)
+                     colorSwatch[i].identity()
+                        .translate(-.9, .15 * (i - 1), 0)
+                        .scale(i == selectedColor ? .07 : .05);
+
+
+                  for (let i = 0; i < shapeSwatch.length; i++)
+                     shapeSwatch[i].identity()
+                        .translate(-.9, -0.5 + .15 * (i - 1), 0)
+                        .scale(i == selectedShape ? .07 : .05);
+
+                  for (let i = 0; i < dancingObj.length; i++) {
+                     vals[i] += 0.3 * fbc_array[dancingFreq[i]]
+                     dancingObj[i]
+                        .scale(1 + 0.05 * Math.sin(vals[i]));
+
+                  }
+                  //console.log(fbc_array);
+                  root.draw();
+               }
+
+
+               let root = new Object();
+               let scene = root.add();
+
+               // function colorSwatch(i, j) {
+               //    if (i === 1) {
+               //       return root.add(shapeSwatch[j], red_plastic)
+               //    } else if (i === 2) {
+               //       return root.add(shapeSwatch[j], green_plastic)
+               //    } else if (i === 3) {
+               //       return root.add(shapeSwatch[j], blue_plastic)
+               //    } else {
+               //       return root.add(shapeSwatch[j], blue_plastic)
+               //    }
+
+               // }
+
+               // let scene = root.add();
+
+               let dancingObj = [];
+               let dancingFreq = [];
+
+               let colorSwatch = [
+                  root.add(sphere, red_plastic),
+                  root.add(sphere, green_plastic),
+                  root.add(sphere, blue_plastic),
+               ];
+
+               let shapeSwatch = [
+                  root.add(sphere, red_plastic),
+                  root.add(cube, red_plastic),
+                  root.add(cone, red_plastic)
+               ]
+
+               let selectedShape = -1;
+               let isPressed = false;
+               let selectedColor = -1;
+               let mult = 1;
+               canvas1.onPress = (x, y) => {
+                  isPressed = true;
+               }
+
+               canvas1.onDrag = (x, y) => {
+                  if (selectedObject) {
+                     let p = selectedObject.position;
+                     p = viewMatrix.transform(p);
+                     p[0] = x;
+                     p[1] = y;
+                     p = inverseViewMatrix.transform(p);
+                     selectedObject.position = p;
+                     selectedObject.identity().translate(p).scale(.1);
+                     selectedColor = -1;
+                     selectedShape = -1;
+                  }
+               }
+
+               canvas1.onRelease = (x, y) => {
+                  for (let i = 0; i < colorSwatch.length; i++)
+                     if (selectedObject == colorSwatch[i])
+                        selectedColor = i;
+
+                  for (let i = 0; i < shapeSwatch.length; i++)
+                     if (selectedObject == shapeSwatch[i])
+                        selectedShape = i;
+
+                  let p = inverseViewMatrix.transform([x, y, 0]);
+
+                  if (!selectedObject) {
+                     let obj = scene.add(sphere, red_plastic);
+                     obj.position = p;
+                     obj.identity().translate(p).scale(.1);
+                     selectedColor = -1;
+                     selectedShape = -1;
+                  } else {
+                     if (selectedColor >= 0) {
+                        selectedObject.phong = colorSwatch[selectedColor].phong;
+                     }
+                     if (selectedShape >= 0) {
+                        selectedObject.shape = shapeSwatch[selectedShape].shape;
+                     }
+                     if (scaleNow) {
+                        selectedObject.scale(scX, scY, scZ);
+                        scaleNow = false;
+                        let button = document.getElementById("scaleBy");
+                        button.style.backgroundColor = "white";
+                     }
+                     if (scaleFreq) {
+                        scaleFreq = false;
+                        dancingObj.push(selectedObject);
+                        console.log(dancingObj);
+                        dancingFreq.push(freqCur);
+                        console.log(dancingFreq);
+                        vals.push(0);
+                        let button = document.getElementById("freqBy");
+                        button.style.backgroundColor = "white";
+                     }
+                  }
+                  selectedObject = null;
+                  isSelecting = true;
+               }
+
+               canvas1.onMove = (x, y) => {
+                  isPressed = false;
+                  isSelecting = true;
+                  px = x;
+                  py = y;
+               }
+               let scX = 1, scY = 1, scZ = 1;
+
+               let freqCur = 512;
+               showScale()
+               scaleZ.oninput = function () {
+                  scZ = this.value;
+
+                  showScale()
+               }
+
+               scaleY.oninput = function () {
+                  scY = this.value;
+
+                  showScale()
+               }
+
+               scaleX.oninput = function () {
+                  scX = this.value;
+
+                  showScale()
+               }
+
+               Freq.oninput = function () {
+                  freqCur = this.value;
+               }
+
+               function showScale() {
+                  scale.innerHTML = "<p>scale by (" + scX + ", " + scY + ", " + scZ + ") </p>"
+               }
+
+               let scaleNow = false;
+
+               function scaleStore() {
+                  scaleNow = true;
+                  let button = document.getElementById("scaleBy");
+                  button.style.backgroundColor = "red";
+               }
+
+               let scaleFreq = false;
+               let vals = []
+
+               function freqStore() {
+                  scaleFreq = true;
+                  let button = document.getElementById("freqBy");
+                  button.style.backgroundColor = "red";
+               }
+
+               // START EVERYTHING.
+
+               gl_start(canvas1, vs, fs);
+
+            </script>

@@ -1,0 +1,177 @@
+<script src="lib1.js"></script>
+
+<body bgcolor="black" text="white" link="white" alink="white" vlink="white">
+  <center>
+    <canvas id="canvas1" width="400" height="400"></canvas>
+  </center>
+</body>
+
+<!!-------- VERTEX SHADER: YOU PROBABLY DON'T WANT TO CHANGE THIS RIGHT NOW -------->
+
+<script id="my_vertex_shader" type="x-shader/x-vertex">
+  attribute vec3 aPos;
+  varying   vec3 vPos;
+  void main() {
+     gl_Position = vec4(aPos, 1.);
+     vPos = aPos;
+  }
+</script>
+
+<!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
+
+<script id="my_fragment_shader" type="x-shader/x-fragment">
+   float noise(vec3 v) {
+        vec4 r[2];
+       const mat4 E = mat4(0.,0.,0.,0., 0.,.5,.5,0., .5,0.,.5,0., .5,.5,0.,0.);
+       for (int j = 0 ; j < 2 ; j++)
+         for (int i = 0 ; i < 4 ; i++) {
+           vec3 p = .60*v + E[i].xyz, C = floor(p), P = p - C-.5, A = abs(P), D;
+           C += mod(C.x+C.y+C.z+float(j),2.) * step(max(A.yzx,A.zxy),A)*sign(P);
+           D  = 314.1*sin(59.2*float(i+4*j) + 65.3*C + 58.9*C.yzx + 79.3*C.zxy);
+           r[j][i] = dot(P=p-C-.5,fract(D)-.5) * pow(max(0.,1.-2.*dot(P,P)),4.);
+         }
+       return 6.50 * (r[0].x+r[0].y+r[0].z+r[0].w+r[1].x+r[1].y+r[1].z+r[1].w);
+   }
+
+  float disk(vec2 xy, float x, float y, float r) {
+     xy = (xy - vec2(x, y)) / r;
+     return step(length(xy), 1.);
+  }
+
+  uniform float uTime;   // TIME, IN SECONDS
+
+  varying vec3 vPos;    // -1 < vPos.x < +1
+                        // -1 < vPos.y < +1
+                        //      vPos.z == 0
+
+
+   float edge(vec2 xy, float a, float b, float c) {
+     return step(a * xy.x + b * xy.y + c, 0.);
+   }
+   void main() {
+
+    vec2 xy = vPos.xy;
+    vec2 cirxy = vPos.xy;
+
+
+
+    xy += .5 * noise(vPos + 0.2*uTime);
+    cirxy += .01 * noise(5. * vPos + uTime);
+
+    //causes rotation of the circles and edge
+    float cirDistX = 0.5*sin(uTime*0.5 + 0.78);
+    float cirDistY = 0.5*cos(uTime*0.5 + 0.78);
+    float edgeX = cos(uTime*0.5);
+    float edgeY = sin(uTime*0.5);
+
+    //creating the line to split the screen
+    float line = edge(xy, edgeX, edgeY, 0.);
+
+    //creating the disks
+    float circle1 = disk(cirxy, -cirDistX, cirDistY, 0.1);
+    float circle2 = disk(cirxy, cirDistX, -cirDistY, 0.1);
+
+
+
+
+
+
+    //these 'colors'/ floats that come to represent colors change over time
+    //between -3.5 and 4.5. These values exceed the actual parameters of
+    //0 and 1 which is a design choice which makes the transition breif.
+    float color1 = -4.0*cos(uTime*0.2) + 0.5;
+    float color2 = 4.0*cos(uTime*0.2) + 0.5;
+
+    vec3 color = vec3(color1, color1, color1);
+
+    // This mixes and colors the three elements of yin yang
+    color = mix(color, vec3(color2, color2, color2), line);
+    color = mix(color, vec3(color1, color1, color1), circle1);
+    color = mix(color, vec3(color2, color2, color2), circle2);
+
+    // THIS LINE OUTPUTS THE FRAGMENT COLOR
+
+    gl_FragColor = vec4(sqrt(color), 1.0);
+  }
+</script>
+
+<!!-------- CREATE A PROPERLY DESCRIPTIVE TITLE BELOW -------->
+
+<script id="my_title" type="text/html">
+  Organic Yin-Yang
+</script>
+
+<!!-------- HERE IS WHERE YOU CAN PROVIDE A LONGER TEXT DESCRIPTION -------->
+
+<script id="my_instructions" type="text/html">
+  <font color=#b0b0b0>
+  <h2>Organic Yin-Yang</h2><br>
+  This program is a rotating yin-yang symbol<br>
+  created using a fragment shader in webgl.<br>
+  It uses a <code>noise()</code> function to create<br>
+  organic flowing lines and edges which <br>
+  rotate around the center axis using <code>sin()</code><br>
+  and <code>cos()</code> functions. There is also <br>
+  a transition where the colors flip, which occurs <br>
+  about every six seconds. Hope you enjoy!
+</script>
+
+<!!-------- YOU PROBABLY DON'T WANT TO CHANGE ANYTHING BELOW FOR NOW -------->
+
+<script>
+  // CREATE THE HTML DOCUMENT
+
+  let vs = my_vertex_shader.innerHTML,
+    fs = my_fragment_shader.innerHTML;
+  fs = fs.substring(1, fs.length);
+
+  document.body.innerHTML = [
+    "",
+    "<center><font size=6 color=#b0b0b0>" + my_title.innerHTML + "</center>",
+    "<TABLE cellspacing=0 cellpadding=0><TR>",
+    "<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>",
+    "</TR><TR>",
+    "<table cellspacing=10>",
+    "<tr>",
+    "<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>",
+    "<td valign=top>",
+    "<textArea id=textArea spellcheck=false ",
+    'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"',
+    "></textArea>",
+    "</td><td valign=top>" + document.body.innerHTML + "</td>",
+    "<td valign=top><font size=5>" + my_instructions.innerHTML + "</td>",
+    "</tr></table>",
+    "</TR></TABLE>"
+  ].join("");
+
+  // SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
+
+  let text = fs.split("\n"),
+    cols = 0;
+  for (let i = 0; i < text.length; i++) cols = Math.max(cols, text[i].length);
+
+  textArea.rows = text.length;
+  textArea.cols = cols;
+  textArea.value = fs;
+  textArea.style.backgroundColor = "#202020";
+  textArea.style.color = "white";
+
+  // REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
+
+  textArea.onkeyup = function() {
+    canvas1.setShaders(vs, this.value);
+  };
+
+  // SET THE CURRENT TIME IN SECONDS BEFORE RENDERING EACH FRAME.
+
+  let startTime = Date.now();
+
+  function animate(gl) {
+    let time = (Date.now() - startTime) / 1000;
+    setUniform("1f", "uTime", time);
+  }
+
+  // START EVERYTHING.
+
+  gl_start(canvas1, vs, fs);
+</script>

@@ -1,5 +1,6 @@
 <script src="lib2.js"></script>
 
+
 <body bgcolor="black" text="white" link="white" alink="white" vlink="white">
   <center>
     <canvas id="canvas1" width="400" height="400"></canvas>
@@ -8,7 +9,7 @@
 
 <!!-------- VERTEX SHADER: YOU PROBABLY DON'T WANT TO CHANGE THIS RIGHT NOW -------->
 
-<script id="my_vertex_shader" type="x-shader/x-vertex">
+  <script id="my_vertex_shader" type="x-shader/x-vertex">
   attribute vec3 aPos;
   varying   vec3 vPos;
   void main() {
@@ -17,31 +18,30 @@
   }
 </script>
 
-<!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
+  <!!-------- FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK -------->
 
-<script id="my_fragment_shader" type="x-shader/x-fragment">
+    <script id="my_fragment_shader" type="x-shader/x-fragment">
 
-  float raySphere(vec4 sphere){
+  float disk(vec2 xy, float x, float y, float r) {
+     xy = (xy - vec2(x, y)) / r;
+     return step(length(xy), 1.);
+  }
 
-     vec3 Vp = V - Sph.xyz;
+  float edge(vec2 xy, float a, float b, float c) {
+     return step(a * xy.x + b * xy.y + c, 0.);
+  }
 
-     // COMPUTE QUADRATIC COEFFICIENTS
-
-     float B = dot(W, Vp);
-     float C = dot(Vp, Vp) - Sph.w * Sph.w;
-     float discr = B * B - C;
-
-     // IF DISCRIMINANT IS NOT NEGATIVE
-
-     if (discr >= 0.) {
-
-        // COMPUTE t.
-
-        float t = -B - sqrt(discr);
-
-        // IF t IS NOT NEGATIVE
-
-
+  float computeT(vec3 V, vec3 W, vec4 sph){
+    vec3 Vp = V - sph.xyz;
+    float t = -1.;
+    // COMPUTE QUADRATIC COEFFICIENTS
+    float B = dot(W, Vp);
+    float C = dot(Vp, Vp) - sph.w * sph.w;
+    float discr = B * B - C;
+    if (discr >= 0.){
+      t = -B - sqrt(discr);
+    }
+    return t;
   }
 
   uniform float uTime;   // TIME, IN SECONDS
@@ -56,118 +56,139 @@
 
   // GEOMETRY
 
-  vec4 Sph = vec4(0.,0.,-3., .8);
 
   // LIGHT DIRECTION AND COLOR
 
-  vec3 L  = normalize(vec3(sin(uTime),1.,1.));
+  vec3 L  = normalize(vec3(1.,1.,1.));
   vec3 Lc = vec3(1.,1.,1.);
 
   // REFLECTANCE: AMBIENT AND DIFFUSE
+  vec3 D = vec3(.1,.4,1.);
+  vec4 sph[6];
+  vec3 A[6];
 
-  vec3 A = vec3(.025,.025,.1);
-  vec3 D = vec3(.5,.5,.2);
 
+  const int sphNum = 6;
   void main() {
 
      // BACKGROUND COLOR
 
-     vec3 color = vec3(.1,.1,.4);
+    vec3 water = vec3(.005-abs(0.11*sin(uTime*0.2)), .032-abs(0.15*sin(uTime*0.2)), .785-abs(0.9*sin(uTime*0.2)));
+    A[0] = vec3(.94,.56,.22);//sun
+    A[1] = vec3(.66,.65,.69);//moon
+    A[2] = water;
+    A[3] = water;
+    A[4] = water;
+    A[5] = water;
 
-     // COMPUTE RAY (V,W) AT THIS PIXEL
+    sph[0] = vec4(sin(uTime*0.4)*2.5,cos(uTime*0.4) - 1.,-6., .2);
+    sph[1] = vec4(sin(uTime*0.4 + 3.14)*2.5,cos(uTime*0.4+3.14) - 1.,-6., .2);
+    sph[2] = vec4(-1.5,-5.,-5. + .3*sin(uTime), 4.);
+    sph[3] = vec4(1.5,-5.,-5. + .5*cos(uTime), 4.);
+    sph[4] = vec4(0.,-5.,-5. + .4*sin(uTime+2.), 4.);
+    sph[5] = vec4(0.,-12.1 + 0.05*sin(uTime*0.1),-5.5 , 11.);
+    vec3 L  = normalize(vec3(1.,0.2+ max(sph[0].y,sph[1].y), 1.));
+    float time = abs(sin(uTime*0.2));
+    vec3 color = vec3(.6 - time * .6,.8 - time * .8,.9- time * .9);
+    // COMPUTE RAY (V,W) AT THIS PIXEL
 
-     vec3 V = vec3(0.,0.,0.);
-     vec3 W = normalize(vec3(vPos.xy, -fl));
-     W += 0.2 * noise(W + 0.1*uTime);
+    vec3 V = vec3(0.,0.,0.);
+    vec3 W = normalize(vec3(vPos.xy, -fl));
+    float t0 = 1000.;
 
+    for(int i = 0; i < sphNum; i++){
+        float t = computeT(V, W, sph[i]);
 
-        if (t >= 0.) {
+        // IF t IS NOT NEGATIVE
 
-           // COMPUTE SURFACE POINT AND NORMAL
+        if (t >= 0. && t < t0) {
+          t0 = t + noise(5.0*vPos + 0.3*uTime);
+          // COMPUTE SURFACE POINT AND NORMAL
 
-           vec3 P = V + t * W;
-          vec3 N = normalize(P - (Sph.xyz));
-
-          // DO SURFACE SHADING
-
-           color = A + Lc * D * max(0., dot(N,L));
+          vec3 P = V + t * W;
+          vec3 N = normalize(P - sph[i].xyz);
+          color = A[i] + Lc * D * max(0., dot(N,L));
         }
-     }
+    }
 
      gl_FragColor = vec4(sqrt(color), 1.0);
   }
 </script>
 
-<!!-------- CREATE A PROPERLY DESCRIPTIVE TITLE BELOW -------->
+    <!!-------- CREATE A PROPERLY DESCRIPTIVE TITLE BELOW -------->
 
-<script id="my_title" type="text/html">
-  RAY TRACING TO A SPHERE
+      <script id="my_title" type="text/html">
+  Morning Sunrise!
 </script>
 
-<!!-------- HERE IS WHERE YOU CAN PROVIDE A LONGER TEXT DESCRIPTION -------->
+      <!!-------- HERE IS WHERE YOU CAN PROVIDE A LONGER TEXT DESCRIPTION -------->
 
-<script id="my_instructions" type="text/html">
+        <script id="my_instructions" type="text/html">
   <font color=#b0b0b0>
-  This is an example of the simple algorithm
-  to ray trace to a sphere.
+  This is a simple animation that uses raytracing of six spheres moving
+  to similate a sunrise and sunset over the ocean as well as a moonrise
+  and moonset(?) Not sure if those last two are words, but anyway I used the <code>noise</code>
+  function to add ripples to the water, and used plenty of <code>sin</code> and <code>cos</code> calculations
+  to change the lighting and do all the movement that's going on here.
 </script>
 
-<!!-------- YOU PROBABLY DON'T WANT TO CHANGE ANYTHING BELOW FOR NOW -------->
+        <!!-------- YOU PROBABLY DON'T WANT TO CHANGE ANYTHING BELOW FOR NOW -------->
 
-<script>
-  // CREATE THE HTML DOCUMENT
+          <script>
+            // CREATE THE HTML DOCUMENT
 
-  let vs = my_vertex_shader.innerHTML,
-    fs = my_fragment_shader.innerHTML;
-  fs = fs.substring(1, fs.length);
+            let vs = my_vertex_shader.innerHTML,
+              fs = my_fragment_shader.innerHTML;
+            fs = fs.substring(1, fs.length);
 
-  document.body.innerHTML = [
-    "",
-    "<center><font size=6 color=#b0b0b0>" + my_title.innerHTML + "</center>",
-    "<TABLE cellspacing=0 cellpadding=0><TR>",
-    "<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>",
-    "</TR><TR>",
-    "<table cellspacing=10>",
-    "<tr>",
-    "<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>",
-    "<td valign=top>",
-    "<textArea id=textArea spellcheck=false ",
-    'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"',
-    "></textArea>",
-    "</td><td valign=top>" + document.body.innerHTML + "</td>",
-    "<td valign=top><font size=5>" + my_instructions.innerHTML + "</td>",
-    "</tr></table>",
-    "</TR></TABLE>"
-  ].join("");
+            document.body.innerHTML = [
+              "",
+              "<center><font size=6 color=#b0b0b0>" + my_title.innerHTML + "</center>",
+              "<TABLE cel,lspacing=0 cellpadding=0><TR>",
+              "<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>",
+              "</TR><TR>",
+              "<table cellspacing=10>",
+              "<tr>",
+              "<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>",
+              "<td valign=top>",
+              "<textArea id=textArea spellcheck=false ",
+              'style="font:16px courier;outline-width:0;border-style:none;resize:none;overflow:scroll;"',
+              "></textArea>",
+              "</td><td valign=top>" + document.body.innerHTML + "</td>",
+              "<td valign=top><font size=5>" + my_instructions.innerHTML + "</td>",
+              "</tr></table>",
+              "</TR></TABLE>"
+            ].join("");
 
-  // SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
+            // SET UP THE EDITABLE TEXT AREA ON THE LEFT SIDE.
 
-  let text = fs.split("\n"),
-    cols = 0;
-  for (let i = 0; i < text.length; i++) cols = Math.max(cols, text[i].length);
+            let text = fs.split("\n"),
+              cols = 0;
+            for (let i = 0; i < text.length; i++) cols = Math.max(cols, text[i].length);
 
-  textArea.rows = text.length;
-  textArea.cols = cols;
-  textArea.value = fs;
-  textArea.style.backgroundColor = "#202020";
-  textArea.style.color = "white";
+            textArea.rows = text.length;
+            textArea.cols = cols;
+            textArea.value = fs;
+            textArea.style.backgroundColor = "#202020";
+            textArea.style.color = "white";
+            textArea.style.width = "784.800px";
 
-  // REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
+            // REPARSE THE SHADER PROGRAM AFTER EVERY KEYSTROKE.
 
-  textArea.onkeyup = function() {
-    canvas1.setShaders(vs, this.value);
-  };
+            textArea.onkeyup = function () {
+              canvas1.setShaders(vs, this.value);
+            };
 
-  // SET THE CURRENT TIME IN SECONDS BEFORE RENDERING EACH FRAME.
+            // SET THE CURRENT TIME IN SECONDS BEFORE RENDERING EACH FRAME.
 
-  let startTime = Date.now();
+            let startTime = Date.now();
 
-  function animate(gl) {
-    let time = (Date.now() - startTime) / 1000;
-    setUniform("1f", "uTime", time);
-  }
+            function animate(gl) {
+              let time = (Date.now() - startTime) / 1000;
+              setUniform("1f", "uTime", time);
+            }
 
-  // START EVERYTHING.
+            // START EVERYTHING.
 
-  gl_start(canvas1, vs, fs);
-</script>
+            gl_start(canvas1, vs, fs);
+          </script>

@@ -209,13 +209,13 @@ It reminds me of the opening to the Twilight Zone. The song may take a little ti
                   // drawShape(torus);
 
                   // DRAW AN ANIMATING RED PLASTIC ELLIPSOID.
-                  // for (let i = 0; i < 32; i++) {
-                  //    setUniform('Matrix4fv', 'uM', false, [.1, 0.01 * i * Math.sin(theta), 0, 0, .5 * (1 / i) * Math.cos(theta / 10), 0, 0, 0, 1, 1, 1, 40, 1, 1, 1, 0]);
-                  //    matrix.identity();
-                  //    matrix.scale(1.6 / i, 1 / i, 1 / i);
-                  //    matrix.translate(.1 * Math.sin(time * 0.1) * Math.cos(2 * theta + i), .1 + .2 * Math.sin(2 * theta + i), i * 0.1);
-                  //    drawShape(torus);
-                  // }
+                  for (let i = 0; i < 32; i++) {
+                     setUniform('Matrix4fv', 'uM', false, [.1, 0.01 * i * Math.sin(theta), 0, 0, .5 * (1 / i) * Math.cos(theta / 10), 0, 0, 0, 1, 1, 1, 40, 1, 1, 1, 0]);
+                     matrix.identity();
+                     matrix.scale(1.6 / i, 1 / i, 1 / i);
+                     matrix.translate(.1 * Math.sin(time * 0.1) * Math.cos(2 * theta + i), .1 + .2 * Math.sin(2 * theta + i), i * 0.1);
+                     drawShape(torus);
+                  }
 
                   setUniform('Matrix4fv', 'uM', false, [0.04, 0.025, 0.025, 0.1, 0.1, 0.1, 0, 0, 1, 1, 1, 20, 1, 1, 1, 0]);
                   matrix.identity();

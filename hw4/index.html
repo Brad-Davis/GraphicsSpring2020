@@ -306,11 +306,11 @@ This is a tape player where you can adjust the speed of the song with the slider
 
                      // REPLACE THE FOLLOWING WITH AN IMPLEMENTATION THAT USES A Matrix OBJECT.
                      // SEE BELOW, WHERE I'VE GOTTEN YOU STARTED.
-                     //    matrix.identity();
-                     //    matrix.translate(0, 0, 0);
-                     //    matrix.rotateZ(theta);
-                     // //console.log(speed);
-                     //    matrix.scale(Math.max(0.5, vol*7), Math.max(0.5, vol*7), .5);
+                     matrix.identity();
+                     matrix.translate(0, 0, 0);
+                     matrix.rotateZ(theta);
+                     //console.log(speed);
+                     matrix.scale(Math.max(0.5, vol * 7), Math.max(0.5, vol * 7), .5);
                      // console.log(vol);
 
                      setUniform('Matrix4fv', 'uMat', false, matrix.getValue());

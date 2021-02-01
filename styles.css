@@ -3,6 +3,7 @@ body {
   font-family: "Roboto", sans-serif;
   width: 70%;
   font-size: 1.5em;
+  overflow-x: hidden;
 }
 
 #title {
@@ -17,7 +18,7 @@ a {
   border-bottom: 1px solid white;
   color: white;
   padding-bottom: 0.25em;
-  font-size: 2em;
+  font-size: 1.2em;
   text-decoration: none;
 }
 
